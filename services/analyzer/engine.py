@@ -137,8 +137,21 @@ class AnalyzerEngine:
                     "description": reason,
                     "source": src_id,
                     "target": dst_label,
-                    "timestamp": event.timestamp.isoformat()
+                    "timestamp": event.timestamp.isoformat(),
+                    "protocol": protocol_str,
+                    "source_port": event.source_port,
+                    "destination_port": event.destination_port,
+                    "bytes_sent": event.bytes_sent,
+                    "bytes_received": event.bytes_received,
+                    "matched_rule": reason,
+                    "destination_ip": event.destination_ip,
                 }
+
+                # Add ML metadata if available (before broadcast so WS clients get it)
+                if ml_verdict:
+                    alert["ml_classification"] = ml_verdict["classification"]
+                    alert["ml_confidence"] = ml_verdict["confidence"]
+                    alert["ml_risk_score"] = ml_verdict["risk_score"]
 
                 # Broadcast to connected clients
                 from services.api.transceiver import manager
@@ -146,12 +159,6 @@ class AnalyzerEngine:
                     "type": "alert",
                     "payload": alert
                 })
-                
-                # Add ML metadata if available
-                if ml_verdict:
-                    alert["ml_classification"] = ml_verdict["classification"]
-                    alert["ml_confidence"] = ml_verdict["confidence"]
-                    alert["ml_risk_score"] = ml_verdict["risk_score"]
                 
                 add_alert(alert)
 

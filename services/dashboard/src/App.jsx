@@ -2,6 +2,15 @@ import React, { useState, useEffect } from "react";
 import GraphView from "./GraphView";
 import Alerts from "./Alerts";
 import TrafficAnalytics from "./TrafficAnalytics";
+import Timeline from "./Timeline";
+import UserProfiles from "./UserProfiles";
+import SessionTracking from "./SessionTracking";
+import PolicyEngine from "./PolicyEngine";
+import DlpMonitor from "./DlpMonitor";
+import KillChain from "./KillChain";
+import ComplianceBoard from "./ComplianceBoard";
+import ExecutiveBriefing from "./ExecutiveBriefing";
+import { generatePdfReport } from "./generatePdfReport";
 import {
   fetchGraphData,
   fetchAlerts,
@@ -32,6 +41,12 @@ import {
   TrendingUp,
   Download,
   BarChart2,
+  Clock,
+  Layers,
+  ShieldAlert,
+  CheckSquare,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 function App() {
@@ -49,6 +64,18 @@ function App() {
   const [riskScores, setRiskScores] = useState([]);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [darkMode, setDarkMode] = useState(true);
+
+  // Theme toggle
+  const toggleTheme = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.classList.remove("light");
+    } else {
+      document.documentElement.classList.add("light");
+    }
+  };
 
   // Helper: Download CSV
   const downloadCSV = (data, filename) => {
@@ -211,6 +238,42 @@ function App() {
             onClick={() => setActiveTab("settings")}
             tooltip="Settings"
           />
+          <NavItem
+            icon={<Clock />}
+            active={activeTab === "timeline"}
+            onClick={() => setActiveTab("timeline")}
+            tooltip="Timeline"
+          />
+          <NavItem
+            icon={<Eye />}
+            active={activeTab === "profiles"}
+            onClick={() => setActiveTab("profiles")}
+            tooltip="User Profiles"
+          />
+          <NavItem
+            icon={<Layers />}
+            active={activeTab === "sessions"}
+            onClick={() => setActiveTab("sessions")}
+            tooltip="Sessions"
+          />
+          <NavItem
+            icon={<ShieldAlert />}
+            active={activeTab === "dlp"}
+            onClick={() => setActiveTab("dlp")}
+            tooltip="DLP Monitor"
+          />
+          <NavItem
+            icon={<Activity />}
+            active={activeTab === "killchain"}
+            onClick={() => setActiveTab("killchain")}
+            tooltip="Kill Chain"
+          />
+          <NavItem
+            icon={<CheckSquare />}
+            active={activeTab === "compliance"}
+            onClick={() => setActiveTab("compliance")}
+            tooltip="Compliance"
+          />
         </nav>
 
         <div className="mt-auto flex flex-col gap-4">
@@ -248,12 +311,26 @@ function App() {
                 className="bg-sh-panel border border-sh-border rounded-full py-1.5 pl-9 pr-4 text-xs font-mono w-56 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all text-slate-300 placeholder:text-slate-600"
               />
             </div>
-            <div className="text-right border-l border-sh-border pl-6">
-              <div className="text-xl font-mono font-light leading-none tracking-tight text-slate-300">
-                {time.toLocaleTimeString([], { hour12: false })}
-              </div>
-              <div className="text-[9px] text-slate-500 font-bold tracking-widest uppercase">
-                UTC / ZULU
+            <div className="text-right border-l border-sh-border pl-6 flex items-center gap-4">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className={`theme-toggle ${darkMode ? "dark" : "light"}`}
+                title={
+                  darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"
+                }
+              >
+                <div className="theme-toggle-knob">
+                  {darkMode ? "🌙" : "☀️"}
+                </div>
+              </button>
+              <div>
+                <div className="text-xl font-mono font-light leading-none tracking-tight text-slate-300">
+                  {time.toLocaleTimeString([], { hour12: false })}
+                </div>
+                <div className="text-[9px] text-slate-500 font-bold tracking-widest uppercase">
+                  UTC / ZULU
+                </div>
               </div>
             </div>
           </div>
@@ -266,42 +343,64 @@ function App() {
 
           {/* Dashboard Tab */}
           {activeTab === "dashboard" && (
-            <div className="h-full flex flex-col p-3 gap-3">
-              <div className="flex-1 flex gap-3 min-h-0">
+            <div className="h-full flex flex-col p-2 gap-2">
+              {/* Top Stats Row */}
+              <div className="flex gap-2 flex-none">
+                <StatCard
+                  className="flex-1"
+                  label="TOTAL NODES"
+                  value={stats.nodes}
+                  icon={<Monitor className="text-blue-400" />}
+                />
+                <StatCard
+                  className="flex-1"
+                  label="INTERNAL"
+                  value={nodeList.filter((n) => n.type === "internal").length}
+                  icon={<Server className="text-sky-400" />}
+                  borderColor="border-sky-500/20"
+                />
+                <StatCard
+                  className="flex-1"
+                  label="EXTERNAL"
+                  value={nodeList.filter((n) => n.type === "external").length}
+                  icon={<Globe className="text-emerald-400" />}
+                  borderColor="border-emerald-500/20"
+                />
+                <StatCard
+                  className="flex-1"
+                  label="THREATS"
+                  value={stats.shadowCount}
+                  icon={<AlertTriangle className="text-red-400" />}
+                  borderColor="border-red-500/30"
+                />
+                <StatCard
+                  className="flex-1"
+                  label="CONNECTIONS"
+                  value={stats.edges}
+                  icon={<Activity className="text-cyan-400" />}
+                />
+              </div>
+
+              <div className="flex-1 flex gap-2 min-h-0">
                 {/* Graph */}
                 <div className="flex-1 h-full min-w-0 relative bg-sh-panel/30 border border-sh-border rounded-xl overflow-hidden">
-                  <div className="absolute top-0 left-0 w-6 h-6 border-l-2 border-t-2 border-slate-700/50 rounded-tl-lg"></div>
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-r-2 border-b-2 border-slate-700/50 rounded-br-lg"></div>
+                  <div className="absolute top-0 left-0 w-6 h-6 border-l-2 border-t-2 border-slate-700/50 rounded-tl-lg pointer-events-none"></div>
+                  <div className="absolute bottom-0 right-0 w-6 h-6 border-r-2 border-b-2 border-slate-700/50 rounded-br-lg pointer-events-none"></div>
                   <GraphView />
-                  {/* Floating Stats */}
-                  <div className="absolute top-3 left-3 right-3 flex gap-3 pointer-events-none z-10">
-                    <StatCard
-                      label="NODES"
-                      value={stats.nodes}
-                      icon={<Monitor className="text-blue-400" />}
-                    />
-                    <StatCard
-                      label="CONNECTIONS"
-                      value={stats.edges}
-                      icon={<Activity className="text-cyan-400" />}
-                    />
-                    <StatCard
-                      label="THREATS"
-                      value={stats.shadowCount}
-                      icon={<AlertTriangle className="text-red-400" />}
-                      borderColor="border-red-500/30"
-                    />
-                  </div>
                 </div>
                 {/* Alerts Panel */}
-                <div className="w-[360px] flex-none flex flex-col gap-3">
-                  <Alerts />
+                <div className="w-[360px] flex-none flex flex-col gap-2">
+                  <Alerts
+                    onNavigateToNode={(nodeId) => {
+                      setSearchQuery(nodeId);
+                    }}
+                  />
                 </div>
               </div>
               {/* Bottom Row: Top Offenders */}
               {riskScores.length > 0 && (
-                <div className="h-[140px] flex-none bg-sh-panel border border-sh-border rounded-xl overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-sh-border bg-slate-900/50">
+                <div className="h-[100px] flex-none bg-sh-panel border border-sh-border rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-1.5 border-b border-sh-border bg-slate-900/50">
                     <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
                       <TrendingUp size={12} className="text-amber-400" />
                       Top Offenders
@@ -310,13 +409,13 @@ function App() {
                       Risk Score
                     </span>
                   </div>
-                  <div className="flex gap-0 h-[calc(100%-36px)] divide-x divide-sh-border/50 overflow-x-auto custom-scrollbar">
+                  <div className="flex gap-0 h-[calc(100%-29px)] divide-x divide-sh-border/50 overflow-x-auto custom-scrollbar">
                     {riskScores.slice(0, 6).map((r, i) => (
                       <div
                         key={r.ip}
-                        className="flex-1 min-w-[140px] flex flex-col items-center justify-center p-2 hover:bg-slate-800/30 transition-colors"
+                        className="flex-1 min-w-[140px] flex flex-col items-center justify-center p-1.5 hover:bg-slate-800/30 transition-colors"
                       >
-                        <div className="flex items-center gap-1.5 mb-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
                           <span
                             className={`text-xs font-mono font-bold ${
                               i === 0
@@ -330,14 +429,14 @@ function App() {
                           </span>
                         </div>
                         <div
-                          className="text-[11px] font-mono text-slate-300 truncate max-w-[120px]"
+                          className="text-[10px] font-mono text-slate-300 truncate max-w-[120px]"
                           title={r.ip}
                         >
                           {r.ip}
                         </div>
-                        <div className="w-full mt-1.5 bg-slate-800 rounded-full h-1.5">
+                        <div className="w-full mt-1 bg-slate-800 rounded-full h-1">
                           <div
-                            className={`h-1.5 rounded-full transition-all ${
+                            className={`h-1 rounded-full transition-all ${
                               r.risk_pct > 70
                                 ? "bg-red-500"
                                 : r.risk_pct > 40
@@ -347,12 +446,12 @@ function App() {
                             style={{ width: `${r.risk_pct}%` }}
                           />
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[9px] font-mono text-slate-500">
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[8px] font-mono text-slate-500">
                             {r.total_alerts} alerts
                           </span>
                           <span
-                            className={`text-[9px] font-mono font-bold ${
+                            className={`text-[8px] font-mono font-bold ${
                               r.risk_pct > 70
                                 ? "text-red-400"
                                 : r.risk_pct > 40
@@ -397,7 +496,65 @@ function App() {
                     `shadow_hunter_alerts_${new Date().toISOString().split("T")[0]}.csv`,
                   )
                 }
+                onNavigateToNode={(nodeId) => {
+                  setActiveTab("dashboard");
+                  setSearchQuery(nodeId);
+                }}
               />
+            </div>
+          )}
+
+          {/* Timeline Tab */}
+          {activeTab === "timeline" && (
+            <div className="h-full p-3">
+              <Timeline searchQuery={searchQuery} />
+            </div>
+          )}
+
+          {/* User Profiles Tab */}
+          {activeTab === "profiles" && (
+            <div className="h-full p-3">
+              <UserProfiles
+                searchQuery={searchQuery}
+                onNavigateToNode={(nodeId) => {
+                  setActiveTab("dashboard");
+                  setSearchQuery(nodeId);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Sessions Tab */}
+          {activeTab === "sessions" && (
+            <div className="h-full p-3">
+              <SessionTracking
+                searchQuery={searchQuery}
+                onNavigateToNode={(nodeId) => {
+                  setActiveTab("dashboard");
+                  setSearchQuery(nodeId);
+                }}
+              />
+            </div>
+          )}
+
+          {/* DLP Monitor Tab */}
+          {activeTab === "dlp" && (
+            <div className="h-full p-3">
+              <DlpMonitor searchQuery={searchQuery} />
+            </div>
+          )}
+
+          {/* Kill Chain Tab */}
+          {activeTab === "killchain" && (
+            <div className="h-full p-3">
+              <KillChain />
+            </div>
+          )}
+
+          {/* Compliance Tab */}
+          {activeTab === "compliance" && (
+            <div className="h-full p-3">
+              <ComplianceBoard />
             </div>
           )}
 
@@ -584,20 +741,24 @@ const NetworkView = ({ nodes, stats, searchQuery, onExport }) => {
 const SettingsView = () => {
   const [generating, setGenerating] = useState(false);
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = async (format = "pdf") => {
     setGenerating(true);
     try {
       const report = await fetchReport();
       if (report) {
-        const blob = new Blob([JSON.stringify(report, null, 2)], {
-          type: "application/json",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `shadow_hunter_report_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        if (format === "pdf") {
+          generatePdfReport(report);
+        } else {
+          const blob = new Blob([JSON.stringify(report, null, 2)], {
+            type: "application/json",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `shadow_hunter_report_${new Date().toISOString().slice(0, 10)}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
       }
     } catch (e) {
       console.error("Report generation failed:", e);
@@ -668,18 +829,36 @@ const SettingsView = () => {
           </div>
           <div className="p-4">
             <p className="text-xs text-slate-500 mb-3">
-              Generate a comprehensive report of detected Shadow AI usage, alert
-              summaries, and risk scores.
+              Generate a styled PDF report with executive summary, severity
+              charts, top offenders, and recommendations.
             </p>
-            <button
-              onClick={handleGenerateReport}
-              disabled={generating}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-mono font-bold uppercase tracking-wider hover:bg-blue-500/20 transition-all disabled:opacity-50"
-            >
-              <Download size={14} />
-              {generating ? "Generating..." : "Generate Report"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleGenerateReport("pdf")}
+                disabled={generating}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg text-xs font-mono font-bold uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50"
+              >
+                <Download size={14} />
+                {generating ? "Generating…" : "Download PDF"}
+              </button>
+              <button
+                onClick={() => handleGenerateReport("json")}
+                disabled={generating}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-mono font-bold uppercase tracking-wider hover:bg-blue-500/20 transition-all disabled:opacity-50"
+              >
+                <Download size={14} />
+                JSON
+              </button>
+            </div>
           </div>
+        </div>
+
+        {/* Policy Engine */}
+        <PolicyEngine />
+
+        {/* Executive Briefing */}
+        <div className="mt-6">
+          <ExecutiveBriefing />
         </div>
 
         <div className="mt-8 p-4 bg-slate-900/50 border border-sh-border rounded-xl">
@@ -737,18 +916,26 @@ const NavItem = ({ icon, active, badge, onClick, tooltip }) => (
   </button>
 );
 
-const StatCard = ({ label, value, icon, borderColor = "border-sh-border" }) => (
+const StatCard = ({
+  label,
+  value,
+  icon,
+  borderColor = "border-sh-border",
+  className = "",
+}) => (
   <div
-    className={`bg-sh-bg/90 backdrop-blur-md border ${borderColor} rounded-lg px-3 py-2 flex items-center gap-2.5 shadow-lg pointer-events-auto`}
+    className={`bg-sh-panel/50 backdrop-blur-md border ${borderColor} rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg min-w-[140px] transition-all hover:scale-105 hover:bg-sh-panel/80 ${className}`}
   >
-    <div className="p-1.5 bg-slate-900 rounded-md">
-      {React.cloneElement(icon, { size: 14 })}
+    <div className="p-2 bg-slate-800/50 rounded-lg">
+      {React.cloneElement(icon, { size: 18 })}
     </div>
     <div>
-      <div className="text-[9px] text-slate-500 font-bold tracking-wider">
+      <div className="text-[10px] font-mono font-bold text-slate-500 tracking-wider">
         {label}
       </div>
-      <div className="text-sm font-mono font-bold text-slate-200">{value}</div>
+      <div className="text-xl font-mono font-bold text-slate-200 leading-none">
+        {value}
+      </div>
     </div>
   </div>
 );

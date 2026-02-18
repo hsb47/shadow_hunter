@@ -168,7 +168,13 @@ const GraphView = () => {
       layout: { name: "preset" },
       minZoom: 0.3,
       maxZoom: 3,
-      wheelSensitivity: 0.3,
+      wheelSensitivity: 0.5,
+      textureOnViewport: true,
+      hideEdgesOnViewport: true,
+      hideLabelsOnViewport: true,
+      pixelRatio: 1,
+      selectionType: "single",
+      boxSelectionEnabled: false,
     });
 
     // Node click handler
