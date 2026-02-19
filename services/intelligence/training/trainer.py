@@ -1,7 +1,8 @@
 """
 Model Trainer — End-to-end training pipeline.
 
-Generates data, trains both models, evaluates, and saves to disk.
+Generates data, trains all three models (Anomaly, Autoencoder, Classifier),
+evaluates, and saves to disk.
 
 Usage:
     python -m services.intelligence.training.trainer
@@ -12,6 +13,7 @@ from loguru import logger
 from services.intelligence.training.data_generator import TrainingDataGenerator
 from services.intelligence.models.anomaly import AnomalyModel
 from services.intelligence.models.classifier import TrafficClassifier
+from services.intelligence.models.autoencoder import ShadowAutoencoder
 
 
 SAVE_DIR = os.path.join(os.path.dirname(__file__), "..", "saved_models")
@@ -38,6 +40,12 @@ def train_all(n_samples: int = 5000):
     anomaly_model.train(X_normal)
     anomaly_model.save(os.path.join(SAVE_DIR, "anomaly_model.joblib"))
 
+    # 2.5 Train Autoencoder (unsupervised — normal samples only)
+    logger.info("\n--- Training Deep Learning Autoencoder ---")
+    autoencoder = ShadowAutoencoder(contamination=0.15)
+    autoencoder.train(X_normal)
+    autoencoder.save(os.path.join(SAVE_DIR, "autoencoder_model.joblib"))
+
     # 3. Train Traffic Classifier (supervised — uses all labeled data)
     logger.info("\n--- Training Traffic Classifier ---")
     classifier = TrafficClassifier()
@@ -46,13 +54,13 @@ def train_all(n_samples: int = 5000):
 
     # 4. Quick evaluation
     logger.info("\n--- Quick Evaluation ---")
-    evaluate(anomaly_model, classifier, X, y)
+    evaluate(anomaly_model, autoencoder, classifier, X, y)
 
     logger.info("\n✅ All models trained and saved to: " + SAVE_DIR)
 
 
-def evaluate(anomaly_model, classifier, X, y):
-    """Quick evaluation of both models."""
+def evaluate(anomaly_model, autoencoder, classifier, X, y):
+    """Quick evaluation of all three models."""
     # Anomaly model
     scores = anomaly_model.predict(X)
     anomalous = anomaly_model.is_anomalous(X)
@@ -66,9 +74,30 @@ def evaluate(anomaly_model, classifier, X, y):
     normal_flagged = sum(1 for i, is_a in enumerate(anomalous) if is_a and normal_mask[i])
     normal_total = sum(normal_mask)
     
-    logger.info(f"Anomaly Model:")
+    logger.info(f"Anomaly Model (Isolation Forest):")
     logger.info(f"  Shadow AI detection rate: {ai_caught}/{ai_total} ({100*ai_caught/max(ai_total,1):.1f}%)")
     logger.info(f"  False positive rate: {normal_flagged}/{normal_total} ({100*normal_flagged/max(normal_total,1):.1f}%)")
+
+    # Autoencoder
+    logger.info(f"Autoencoder (Deep Learning):")
+    ae_ai_caught = 0
+    ae_normal_flagged = 0
+    for i in range(len(y)):
+        result = autoencoder.predict(X[i:i+1])
+        if result["is_anomalous"]:
+            if ai_mask[i]:
+                ae_ai_caught += 1
+            if normal_mask[i]:
+                ae_normal_flagged += 1
+    logger.info(f"  Shadow AI detection rate: {ae_ai_caught}/{ai_total} ({100*ae_ai_caught/max(ai_total,1):.1f}%)")
+    logger.info(f"  False positive rate: {ae_normal_flagged}/{normal_total} ({100*ae_normal_flagged/max(normal_total,1):.1f}%)")
+
+    # ML+DL Agreement
+    agreement = sum(
+        1 for i in range(len(y))
+        if anomalous[i] and autoencoder.predict(X[i:i+1])["is_anomalous"] and ai_mask[i]
+    )
+    logger.info(f"ML+DL Agreement on Shadow AI: {agreement}/{ai_total} ({100*agreement/max(ai_total,1):.1f}%)")
 
     # Classifier
     predictions = classifier.predict(X)

@@ -11,6 +11,24 @@ from datetime import datetime
 from loguru import logger
 from pkg.models.events import NetworkFlowEvent, Protocol
 
+# Map AI domains to realistic IPs within known CIDR blocks
+# These IPs fall within the ranges defined in pkg.data.cidr_threat_intel
+AI_DOMAIN_TO_CIDR_IP = {
+    "chatgpt.com": "13.107.42.14",
+    "copilot.microsoft.com": "13.107.42.22",
+    "cursor.sh": "13.107.43.55",
+    "midjourney.com": "104.18.12.33",
+    "leonardo.ai": "104.18.45.67",
+    "canva.com": "104.18.88.12",
+    "gemini.google.com": "142.250.80.46",
+    "huggingface.co": "54.164.22.99",
+    "api.openai.com": "13.107.42.44",
+    "anthropic.com": "34.102.136.22",
+    "claude.ai": "34.102.136.180",
+    "perplexity.ai": "34.102.137.55",
+    "chat.deepseek.com": "34.149.88.10",
+}
+
 
 # ─── Employee Personas ───────────────────────────────────────────────
 EMPLOYEES = [
@@ -169,11 +187,14 @@ class TrafficGenerator:
 
     async def _send_ai_traffic(self, src_ip: str, ai_domain: str):
         """Shadow AI usage — larger payloads, HTTPS to known AI domains."""
+        # Use a realistic CIDR IP if available, otherwise fallback
+        dst_ip = AI_DOMAIN_TO_CIDR_IP.get(ai_domain, "13.107.42.14")
+
         # AI traffic typically involves larger request/response payloads
         event = NetworkFlowEvent(
             source_ip=src_ip,
             source_port=random.randint(49152, 65535),
-            destination_ip="8.8.8.8",
+            destination_ip=dst_ip,
             destination_port=443,
             protocol=Protocol.HTTPS,
             bytes_sent=random.randint(5000, 80000),   # Large prompts

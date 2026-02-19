@@ -77,6 +77,7 @@ class TrainingDataGenerator:
         X = self.extractor.extract_batch(list(events))
         logger.info(f"Generated {n_samples} training samples: "
                     f"{n_normal} normal, {n_suspicious} suspicious, {n_ai} shadow_ai")
+        logger.info(f"  Feature vector size: {X.shape[1]} dimensions")
         return X, list(labels)
 
     def _gen_normal(self) -> NetworkFlowEvent:
@@ -120,13 +121,33 @@ class TrainingDataGenerator:
     def _gen_shadow_ai(self) -> NetworkFlowEvent:
         """Generate Shadow AI traffic (known AI domains, large payloads)."""
         ai_domain = random.choice(list(AI_DOMAINS)[:20])
+
+        # Use realistic CIDR IPs for AI services
+        cidr_ips = [
+            "13.107.42.14", "13.107.43.55",   # OpenAI
+            "34.102.136.22", "34.102.137.55", # Anthropic
+            "142.250.80.46",                   # Google AI
+            "54.164.22.99",                    # Hugging Face
+        ]
+        dst_ip = random.choice(cidr_ips)
+
+        # Mix of large and subtle payloads to stress-test the autoencoder
+        if random.random() < 0.3:
+            # Subtle: lower bytes, harder to distinguish from normal
+            bytes_sent = random.randint(1000, 8000)
+            bytes_recv = random.randint(2000, 20000)
+        else:
+            # Obvious: large prompts and responses
+            bytes_sent = random.randint(5000, 100000)
+            bytes_recv = random.randint(10000, 500000)
+
         return NetworkFlowEvent(
             source_ip=random.choice(INTERNAL_IPS),
             source_port=random.randint(49152, 65535),
-            destination_ip="8.8.8.8",
+            destination_ip=dst_ip,
             destination_port=443,
             protocol=Protocol.HTTPS,
-            bytes_sent=random.randint(5000, 100000),   # Big prompts
-            bytes_received=random.randint(10000, 500000),  # Big responses
+            bytes_sent=bytes_sent,
+            bytes_received=bytes_recv,
             metadata={"host": ai_domain, "sni": ai_domain},
         )
