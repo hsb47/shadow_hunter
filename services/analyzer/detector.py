@@ -1,38 +1,68 @@
-from pkg.models.events import NetworkFlowEvent, Protocol
-from pkg.data.ai_domains import is_ai_domain
+"""
+Anomaly Detector — Plugin-based detection engine.
+
+Dynamically loads all DetectionPlugin implementations from the plugins/ directory.
+Also maintains the whitelist to suppress false positives.
+"""
+import os
+import importlib
+import inspect
+from typing import Tuple, Optional, List
+from loguru import logger
+
+from pkg.models.events import NetworkFlowEvent
+from services.analyzer.plugin_base import DetectionPlugin
+
 
 class AnomalyDetector:
     """
-    Detects Shadow AI and Anomalous behaviors.
+    Detects Shadow AI and Anomalous behaviors using a plugin architecture.
     Includes whitelisting to reduce false positives.
     """
+
     def __init__(self):
         self.known_subnets = ["192.168.", "10.0.", "172.16.", "127.0."]
-        self.known_ports = [80, 443, 8080, 53, 8443, 993, 995, 587, 465, 22, 3389]
-        
+        self.plugins: List[DetectionPlugin] = []
+
         # Whitelisted patterns — known safe, suppress alerts
         self.whitelist_ips = {
-            # Multicast / Broadcast
-            "224.0.0.251",    # mDNS
-            "224.0.0.252",    # LLMNR
-            "239.255.255.250", # UPnP/SSDP
-            "255.255.255.255", # Broadcast
-            "224.0.0.1",      # All hosts multicast
-            "224.0.0.2",      # All routers multicast
+            "224.0.0.251", "224.0.0.252", "239.255.255.250",
+            "255.255.255.255", "224.0.0.1", "224.0.0.2",
         }
-        self.whitelist_prefixes = [
-            "224.",           # All multicast
-            "239.",           # Administratively scoped multicast
-            "fe80:",          # Link-local IPv6
-            "ff02:",          # IPv6 multicast
-        ]
-        self.whitelist_ports = {
-            5353,   # mDNS
-            1900,   # UPnP/SSDP
-            5228,   # Google Play services push
-            5229,   # Google Play services
-            5230,   # Google Play services
-        }
+        self.whitelist_prefixes = ["224.", "239.", "fe80:", "ff02:"]
+        self.whitelist_ports = {5353, 1900, 5228, 5229, 5230}
+
+        # Auto-load plugins
+        self._load_plugins()
+
+    def _load_plugins(self):
+        """Discover and load all DetectionPlugin subclasses from plugins/ dir."""
+        plugins_dir = os.path.join(os.path.dirname(__file__), "plugins")
+
+        if not os.path.isdir(plugins_dir):
+            logger.warning(f"Plugins directory not found: {plugins_dir}")
+            return
+
+        for filename in sorted(os.listdir(plugins_dir)):
+            if filename.startswith("_") or not filename.endswith(".py"):
+                continue
+
+            module_name = f"services.analyzer.plugins.{filename[:-3]}"
+            try:
+                module = importlib.import_module(module_name)
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if (inspect.isclass(attr)
+                            and issubclass(attr, DetectionPlugin)
+                            and attr is not DetectionPlugin
+                            and attr.enabled):
+                        plugin = attr()
+                        self.plugins.append(plugin)
+                        logger.info(f"  🔌 Loaded plugin: {plugin.name}")
+            except Exception as e:
+                logger.error(f"Failed to load plugin {filename}: {e}")
+
+        logger.info(f"Plugin system: {len(self.plugins)} detection plugins active")
 
     def is_internal(self, ip: str) -> bool:
         return any(ip.startswith(prefix) for prefix in self.known_subnets)
@@ -40,55 +70,42 @@ class AnomalyDetector:
     def is_whitelisted(self, event: NetworkFlowEvent) -> bool:
         """Check if this traffic matches a known safe pattern."""
         dst = event.destination_ip
-        
-        # Known safe IPs
+
         if dst in self.whitelist_ips:
             return True
-        
-        # Multicast/broadcast prefixes
         if any(dst.startswith(p) for p in self.whitelist_prefixes):
             return True
-        
-        # Known safe service ports
         if event.destination_port in self.whitelist_ports:
             return True
-        
-        # Internal-to-internal traffic is always safe
         if self.is_internal(event.source_ip) and self.is_internal(dst):
             return True
-        
+
         return False
 
-    def detect(self, event: NetworkFlowEvent) -> (bool, str):
+    def detect(self, event: NetworkFlowEvent) -> Tuple[bool, Optional[str]]:
         """
-        Returns (is_anomalous, reason)
+        Run all plugins against the event.
+        Returns (is_anomalous, reason) — uses the highest-severity match.
         """
-        # 0. Skip whitelisted patterns (reduces false positives)
+        # Skip whitelisted patterns
         if self.is_whitelisted(event):
             return False, None
 
-        # 1. Metadata Analysis (DPI)
-        host = event.metadata.get("host") or event.metadata.get("sni") or event.metadata.get("dns_query")
-        
-        if host:
-            from pkg.data.ai_domains import get_ai_category
-            category = get_ai_category(host)
-            if category:
-                return True, f"Known AI Service [{category}] Accessed: {host}"
-            
-            # If it's a domain we don't know, and it's definitely not internal
-            if not self.is_internal(host) and not host.endswith(".local") and "." in host:
-                 # Shadow Service heuristic
-                 pass 
+        # Run all plugins, collect hits
+        severity_rank = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
+        best_hit = None
 
-        # 2. Rule: Unknown outbound traffic on non-standard ports
-        if self.is_internal(event.source_ip) and not self.is_internal(event.destination_ip):
-            if event.destination_port not in self.known_ports:
-                return True, f"Outbound traffic to {event.destination_ip} on unusual port {event.destination_port}"
+        for plugin in self.plugins:
+            try:
+                is_anomalous, severity, reason = plugin.detect(event)
+                if is_anomalous and severity:
+                    rank = severity_rank.get(severity, 0)
+                    if best_hit is None or rank > best_hit[0]:
+                        best_hit = (rank, severity, reason)
+            except Exception as e:
+                logger.error(f"Plugin {plugin.name} error: {e}")
 
-        # 3. Rule: DNS tunneling suspect (High payload size on DNS)
-        if event.protocol == Protocol.DNS and event.bytes_sent > 500:
-             return True, "Potential DNS Tunneling (Large DNS Payload)"
+        if best_hit:
+            return True, best_hit[2]
 
         return False, None
-

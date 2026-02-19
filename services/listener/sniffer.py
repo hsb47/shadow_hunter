@@ -5,8 +5,10 @@ Performance Optimizations:
   - Decoupled capture from processing via asyncio.Queue buffer.
   - DPI runs in a separate consumer task, preventing packet loss.
   - Robust TLS SNI extraction replaces the former placeholder.
+  - JA3 fingerprinting for encrypted traffic analysis.
 """
 import asyncio
+import hashlib
 import os
 import struct
 import time
@@ -98,6 +100,111 @@ def extract_tls_sni(payload: bytes) -> str | None:
     return None
 
 
+def extract_ja3_fingerprint(payload: bytes) -> str | None:
+    """
+    Extract JA3 fingerprint from a TLS Client Hello.
+
+    JA3 = md5(TLSVersion,Ciphers,Extensions,EllipticCurves,EllipticCurvePointFormats)
+
+    This fingerprint uniquely identifies the TLS client implementation.
+    For example, Python's `requests` library has a different JA3 than Chrome.
+    """
+    try:
+        if len(payload) < 5 or payload[0] != 0x16:
+            return None
+
+        # TLS record header
+        pos = 5
+        if pos >= len(payload) or payload[pos] != 0x01:  # Client Hello
+            return None
+
+        # Handshake header
+        pos += 1 + 3  # Type + Length
+        if pos + 2 > len(payload):
+            return None
+
+        tls_version = struct.unpack("!H", payload[pos:pos + 2])[0]
+        pos += 2 + 32  # Version + Random
+
+        # Skip Session ID
+        if pos >= len(payload):
+            return None
+        session_id_len = payload[pos]
+        pos += 1 + session_id_len
+
+        # Cipher Suites
+        if pos + 2 > len(payload):
+            return None
+        cipher_len = struct.unpack("!H", payload[pos:pos + 2])[0]
+        pos += 2
+        ciphers = []
+        for i in range(0, cipher_len, 2):
+            if pos + 2 > len(payload):
+                break
+            c = struct.unpack("!H", payload[pos:pos + 2])[0]
+            # Skip GREASE values
+            if (c & 0x0F0F) != 0x0A0A:
+                ciphers.append(str(c))
+            pos += 2
+
+        # Skip Compression
+        if pos >= len(payload):
+            return None
+        comp_len = payload[pos]
+        pos += 1 + comp_len
+
+        # Extensions
+        extensions = []
+        elliptic_curves = []
+        ec_point_formats = []
+
+        if pos + 2 <= len(payload):
+            ext_total_len = struct.unpack("!H", payload[pos:pos + 2])[0]
+            pos += 2
+            ext_end = pos + ext_total_len
+
+            while pos + 4 <= ext_end and pos + 4 <= len(payload):
+                ext_type = struct.unpack("!H", payload[pos:pos + 2])[0]
+                ext_len = struct.unpack("!H", payload[pos + 2:pos + 4])[0]
+                pos += 4
+
+                # Skip GREASE
+                if (ext_type & 0x0F0F) != 0x0A0A:
+                    extensions.append(str(ext_type))
+
+                # Supported Groups (elliptic curves) - ext type 0x000A
+                if ext_type == 0x000A and ext_len >= 2 and pos + ext_len <= len(payload):
+                    group_list_len = struct.unpack("!H", payload[pos:pos + 2])[0]
+                    for j in range(2, min(2 + group_list_len, ext_len), 2):
+                        if pos + j + 2 <= len(payload):
+                            g = struct.unpack("!H", payload[pos + j:pos + j + 2])[0]
+                            if (g & 0x0F0F) != 0x0A0A:
+                                elliptic_curves.append(str(g))
+
+                # EC Point Formats - ext type 0x000B
+                if ext_type == 0x000B and ext_len >= 1 and pos + ext_len <= len(payload):
+                    fmt_len = payload[pos]
+                    for j in range(1, min(1 + fmt_len, ext_len)):
+                        if pos + j < len(payload):
+                            ec_point_formats.append(str(payload[pos + j]))
+
+                pos += ext_len
+
+        # Build JA3 string
+        ja3_str = ",".join([
+            str(tls_version),
+            "-".join(ciphers),
+            "-".join(extensions),
+            "-".join(elliptic_curves),
+            "-".join(ec_point_formats),
+        ])
+
+        return hashlib.md5(ja3_str.encode()).hexdigest()
+
+    except (struct.error, IndexError, ValueError):
+        return None
+
+
 class PacketProcessor:
     """
     Processes network packets with a buffered architecture:
@@ -180,12 +287,15 @@ class PacketProcessor:
                 except Exception:
                     pass
 
-            # 3. DPI: TLS SNI (robust parser)
+            # 3. DPI: TLS SNI + JA3 (robust parser)
             elif dst_port == 443 and payload_len > 0:
                 protocol = Protocol.HTTPS
                 sni = extract_tls_sni(payload)
                 if sni:
                     metadata['sni'] = sni
+                ja3 = extract_ja3_fingerprint(payload)
+                if ja3:
+                    metadata['ja3_hash'] = ja3
 
         elif packet.haslayer(UDP):
             layer = packet[UDP]

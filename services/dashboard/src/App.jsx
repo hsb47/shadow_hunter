@@ -212,7 +212,7 @@ function App() {
           <Shield className="w-6 h-6" />
         </div>
 
-        <nav className="flex flex-col gap-4 w-full px-2">
+        <nav className="flex flex-col gap-4 w-full px-2 items-center">
           <NavItem
             icon={<LayoutDashboard />}
             active={activeTab === "dashboard"}
@@ -223,7 +223,7 @@ function App() {
             icon={<Network />}
             active={activeTab === "network"}
             onClick={() => setActiveTab("network")}
-            tooltip="Network"
+            tooltip="Network Graph"
           />
           <NavItem
             icon={<Bell />}
@@ -233,51 +233,25 @@ function App() {
             tooltip="Alerts"
           />
           <NavItem
+            icon={<ShieldAlert />}
+            active={activeTab === "killchain"}
+            onClick={() => setActiveTab("killchain")}
+            tooltip="Kill Chain"
+          />
+        </nav>
+
+        <div className="mt-auto flex flex-col gap-6 items-center w-full px-2 pb-4">
+          {/* Settings moved to bottom */}
+          <NavItem
             icon={<Settings />}
             active={activeTab === "settings"}
             onClick={() => setActiveTab("settings")}
             tooltip="Settings"
           />
-          <NavItem
-            icon={<Clock />}
-            active={activeTab === "timeline"}
-            onClick={() => setActiveTab("timeline")}
-            tooltip="Timeline"
-          />
-          <NavItem
-            icon={<Eye />}
-            active={activeTab === "profiles"}
-            onClick={() => setActiveTab("profiles")}
-            tooltip="User Profiles"
-          />
-          <NavItem
-            icon={<Layers />}
-            active={activeTab === "sessions"}
-            onClick={() => setActiveTab("sessions")}
-            tooltip="Sessions"
-          />
-          <NavItem
-            icon={<ShieldAlert />}
-            active={activeTab === "dlp"}
-            onClick={() => setActiveTab("dlp")}
-            tooltip="DLP Monitor"
-          />
-          <NavItem
-            icon={<Activity />}
-            active={activeTab === "killchain"}
-            onClick={() => setActiveTab("killchain")}
-            tooltip="Kill Chain"
-          />
-          <NavItem
-            icon={<CheckSquare />}
-            active={activeTab === "compliance"}
-            onClick={() => setActiveTab("compliance")}
-            tooltip="Compliance"
-          />
-        </nav>
-
-        <div className="mt-auto flex flex-col gap-4">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></div>
+          <div
+            className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"
+            title="System Operational"
+          ></div>
         </div>
       </aside>
 
