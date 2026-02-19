@@ -104,6 +104,18 @@ The system follows a microservices-inspired pipeline architecture, running as a 
 
 This section details the implementation of every key component, mapping files to their specific responsibilities and algorithms.
 
+### 📂 Root
+
+#### `run_local.py`
+
+- **Monolith Entry Point**: Orchestrates the startup of all services.
+- **Modes**:
+  - `DEMO` (Default): Uses `TrafficGenerator` to simulate employees.
+  - `LIVE` (`--live`): Requires root/admin for Scapy packet capture.
+- **Logic**: Initializes `MemoryBroker`, `SQLiteGraphStore`, and starts the `uvicorn` server for the API.
+
+---
+
 ### 📂 `pkg/` — Shared Core & Data
 
 #### `pkg/core/interfaces.py`
@@ -197,6 +209,18 @@ This section details the implementation of every key component, mapping files to
   - Calculates **Betweenness Centrality** ($C_B(v)$).
   - **Logic**: Identifies "Bridge Nodes" — internal IPs with high centrality that connect disparate subnets.
   - **Filtering**: Ignores known infrastructure (Gateways, DNS) via `INFRASTRUCTURE_PATTERNS`.
+
+---
+
+### 📂 `services/api` — Integration Layer
+
+#### `main.py`
+
+- **FastAPI Core**: Serves the REST API and mounts the dashboard.
+- **Routers**:
+  - `policy.py`: Handles alerts, blocking, and compliance logic.
+  - `discovery.py`: Serves graph data for the 3D visualization.
+- **Middleware**: Configures CORS to allow the Vite-based dashboard to communicate with the backend.
 
 ---
 
