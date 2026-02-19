@@ -1,8 +1,459 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════
+   DARK THEME (Default)
+   ═══════════════════════════════════════════════════ */
+:root {
+  --color-sh-bg: #020617;
+  --color-sh-panel: #0f172a;
+  --color-sh-border: #1e293b;
+  --color-sh-accent: #ef4444;
+  --color-sh-text: #f8fafc;
+  --color-sh-text-secondary: #94a3b8;
+  --color-sh-text-muted: #64748b;
+  --color-sh-text-dim: #475569;
+  --color-sh-hover: #1e293b;
+  --color-sh-surface: #0f172a;
+  --color-sh-input-bg: #0f172a;
+  --color-sh-grid-color: #1e293b;
+  --color-sh-shadow: rgba(0, 0, 0, 0.3);
+  --color-sh-badge-bg: rgba(15, 23, 42, 0.5);
+  --color-sh-glass: rgba(15, 23, 42, 0.8);
+}
+
+/* ═══════════════════════════════════════════════════
+   LIGHT THEME
+   ═══════════════════════════════════════════════════ */
+:root.light {
+  --color-sh-bg: #f0f4f8;
+  --color-sh-panel: #ffffff;
+  --color-sh-border: #d1dbe6;
+  --color-sh-accent: #dc2626;
+  --color-sh-text: #1a2332;
+  --color-sh-text-secondary: #4a5568;
+  --color-sh-text-muted: #718096;
+  --color-sh-text-dim: #a0aec0;
+  --color-sh-hover: #edf2f7;
+  --color-sh-surface: #f7fafc;
+  --color-sh-input-bg: #f7fafc;
+  --color-sh-grid-color: #cbd5e0;
+  --color-sh-shadow: rgba(0, 0, 0, 0.06);
+  --color-sh-badge-bg: rgba(237, 242, 247, 0.9);
+  --color-sh-glass: rgba(255, 255, 255, 0.92);
+}
+
+@theme {
+  --color-sh-bg: var(--color-sh-bg);
+  --color-sh-panel: var(--color-sh-panel);
+  --color-sh-border: var(--color-sh-border);
+  --color-sh-accent: var(--color-sh-accent);
+  --color-sh-text: var(--color-sh-text);
+  --color-sh-text-secondary: var(--color-sh-text-secondary);
+  --color-sh-text-muted: var(--color-sh-text-muted);
+  --color-sh-text-dim: var(--color-sh-text-dim);
+  --color-sh-hover: var(--color-sh-hover);
+  --color-sh-surface: var(--color-sh-surface);
+  --color-sh-input-bg: var(--color-sh-input-bg);
+  --color-sh-grid-color: var(--color-sh-grid-color);
+  --color-sh-shadow: var(--color-sh-shadow);
+  --color-sh-badge-bg: var(--color-sh-badge-bg);
+  --color-sh-glass: var(--color-sh-glass);
+  --font-mono: "JetBrains Mono", monospace;
+}
 
 body {
-  background-color: #0f172a;
-  color: #f8fafc;
+  background-color: var(--color-sh-bg);
+  color: var(--color-sh-text);
+  overflow: hidden;
+}
+
+/* ─── Smooth theme transition ─── */
+*,
+*::before,
+*::after {
+  transition-property:
+    background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 0.35s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Exclude cytoscape canvas and animations from theme transition */
+canvas,
+[class*="animate-"] {
+  transition: none !important;
+}
+
+/* ─── Custom Scrollbar ─── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-sh-border);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-sh-text-dim);
+}
+
+/* ═══════════════════════════════════════════════════
+   LIGHT MODE — Comprehensive Tailwind overrides
+   ═══════════════════════════════════════════════════ */
+
+/* ─── Text Colors ─── */
+:root.light .text-white {
+  color: #1a2332 !important;
+}
+:root.light .text-slate-200 {
+  color: #2d3748 !important;
+}
+:root.light .text-slate-300 {
+  color: #2d3748 !important;
+}
+:root.light .text-slate-400 {
+  color: #4a5568 !important;
+}
+:root.light .text-slate-500 {
+  color: #718096 !important;
+}
+:root.light .text-slate-600 {
+  color: #a0aec0 !important;
+}
+
+/* ─── Background Colors ─── */
+:root.light .bg-sh-bg {
+  background-color: #f0f4f8 !important;
+}
+:root.light .bg-sh-panel {
+  background-color: #ffffff !important;
+}
+:root.light .bg-sh-bg\/80 {
+  background-color: rgba(240, 244, 248, 0.9) !important;
+}
+
+:root.light .bg-slate-800 {
+  background-color: #edf2f7 !important;
+}
+:root.light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+:root.light .bg-slate-950 {
+  background-color: #f0f4f8 !important;
+}
+:root.light .bg-slate-900\/30 {
+  background-color: rgba(237, 242, 247, 0.4) !important;
+}
+:root.light .bg-slate-900\/50 {
+  background-color: rgba(237, 242, 247, 0.6) !important;
+}
+:root.light .bg-slate-950\/50 {
+  background-color: rgba(240, 244, 248, 0.5) !important;
+}
+
+/* ─── Border Colors ─── */
+:root.light .border-sh-border {
+  border-color: #d1dbe6 !important;
+}
+:root.light .border-slate-700 {
+  border-color: #d1dbe6 !important;
+}
+:root.light .border-slate-800 {
+  border-color: #d1dbe6 !important;
+}
+:root.light .border-slate-800\/50 {
+  border-color: rgba(209, 219, 230, 0.5) !important;
+}
+
+/* ─── Hover States ─── */
+:root.light .hover\:bg-slate-800:hover {
+  background-color: #edf2f7 !important;
+}
+:root.light .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0 !important;
+}
+:root.light .hover\:text-slate-300:hover {
+  color: #2d3748 !important;
+}
+:root.light .hover\:border-slate-600:hover {
+  border-color: #a0aec0 !important;
+}
+
+/* ─── Sidebar ─── */
+:root.light aside {
+  background-color: #ffffff !important;
+  border-color: #d1dbe6 !important;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
+}
+
+/* ─── Header ─── */
+:root.light header {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: #d1dbe6 !important;
+  backdrop-filter: blur(12px);
+}
+
+/* ─── Search Input ─── */
+:root.light input[type="text"] {
+  background-color: #f0f4f8 !important;
+  border-color: #d1dbe6 !important;
+  color: #2d3748 !important;
+}
+:root.light input[type="text"]::placeholder {
+  color: #a0aec0 !important;
+}
+:root.light input[type="text"]:focus {
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* ─── Select Inputs ─── */
+:root.light select {
+  background-color: #f0f4f8 !important;
+  border-color: #d1dbe6 !important;
+  color: #2d3748 !important;
+}
+
+/* ─── Cards & Panels ─── */
+:root.light .bg-sh-panel {
+  background-color: #ffffff !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* ─── Graph Container ─── */
+:root.light .bg-sh-panel canvas {
+  filter: invert(0.92) hue-rotate(180deg) saturate(1.2) contrast(0.95);
+}
+
+/* ─── Table overrides ─── */
+:root.light table thead th {
+  background-color: #f7fafc !important;
+  color: #4a5568 !important;
+  border-color: #d1dbe6 !important;
+}
+:root.light table tbody tr {
+  border-color: #edf2f7 !important;
+}
+:root.light table tbody tr:hover {
+  background-color: #f7fafc !important;
+}
+:root.light table tbody td {
+  color: #2d3748 !important;
+  border-color: #edf2f7 !important;
+}
+
+/* ─── Alert/Severity Badges — keep vibrant in light mode ─── */
+:root.light .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+:root.light .bg-red-500\/20 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+:root.light .bg-amber-500\/10 {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+:root.light .bg-amber-500\/20 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+:root.light .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+:root.light .bg-emerald-500\/20 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+:root.light .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+:root.light .bg-blue-500\/20 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+}
+:root.light .bg-cyan-500\/10 {
+  background-color: rgba(6, 182, 212, 0.08) !important;
+}
+:root.light .bg-violet-500\/10 {
+  background-color: rgba(139, 92, 246, 0.08) !important;
+}
+:root.light .bg-orange-500\/10 {
+  background-color: rgba(249, 115, 22, 0.08) !important;
+}
+
+/* Keep accent text colors vibrant but slightly darker for readability */
+:root.light .text-red-400 {
+  color: #dc2626 !important;
+}
+:root.light .text-red-500 {
+  color: #dc2626 !important;
+}
+:root.light .text-amber-400 {
+  color: #d97706 !important;
+}
+:root.light .text-emerald-400 {
+  color: #059669 !important;
+}
+:root.light .text-blue-400 {
+  color: #2563eb !important;
+}
+:root.light .text-cyan-400 {
+  color: #0891b2 !important;
+}
+:root.light .text-violet-400 {
+  color: #7c3aed !important;
+}
+:root.light .text-sky-400 {
+  color: #0284c7 !important;
+}
+:root.light .text-orange-400 {
+  color: #ea580c !important;
+}
+:root.light .text-green-400 {
+  color: #16a34a !important;
+}
+:root.light .text-green-500 {
+  color: #16a34a !important;
+}
+:root.light .text-fuchsia-400 {
+  color: #c026d3 !important;
+}
+
+/* Border accents — slightly more opaque for light */
+:root.light .border-red-500\/20 {
+  border-color: rgba(220, 38, 38, 0.2) !important;
+}
+:root.light .border-red-500\/30 {
+  border-color: rgba(220, 38, 38, 0.25) !important;
+}
+:root.light .border-amber-500\/20 {
+  border-color: rgba(217, 119, 6, 0.2) !important;
+}
+:root.light .border-amber-500\/30 {
+  border-color: rgba(217, 119, 6, 0.25) !important;
+}
+:root.light .border-emerald-500\/20 {
+  border-color: rgba(5, 150, 105, 0.2) !important;
+}
+:root.light .border-emerald-500\/30 {
+  border-color: rgba(5, 150, 105, 0.25) !important;
+}
+:root.light .border-blue-500\/20 {
+  border-color: rgba(37, 99, 235, 0.2) !important;
+}
+:root.light .border-blue-500\/30 {
+  border-color: rgba(37, 99, 235, 0.25) !important;
+}
+:root.light .border-cyan-500\/30 {
+  border-color: rgba(8, 145, 178, 0.25) !important;
+}
+:root.light .border-violet-500\/30 {
+  border-color: rgba(124, 58, 237, 0.25) !important;
+}
+:root.light .border-orange-500\/30 {
+  border-color: rgba(234, 88, 12, 0.25) !important;
+}
+
+/* ─── Tag / Filter Buttons ─── */
+:root.light button {
+  transition: all 0.2s ease;
+}
+
+/* ─── Active Nav Item blue glow → subtle in light ─── */
+:root.light .shadow-\[0_0_10px_rgba\(59\,130\,246\,0\.1\)\] {
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.12) !important;
+}
+:root.light .shadow-\[0_0_15px_rgba\(239\,68\,68\,0\.2\)\] {
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.1) !important;
+}
+:root.light .shadow-\[0_0_8px_\#22c55e\] {
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.3) !important;
+}
+
+/* ─── Backdrop/Glass ─── */
+:root.light .backdrop-blur-sm {
+  backdrop-filter: blur(12px) !important;
+}
+
+/* ─── Grid Background ─── */
+:root.light
+  .bg-\[linear-gradient\(to_right\,\#1e293b_1px\,transparent_1px\)\,linear-gradient\(to_bottom\,\#1e293b_1px\,transparent_1px\)\] {
+  background-image:
+    linear-gradient(to right, #cbd5e0 1px, transparent 1px),
+    linear-gradient(to bottom, #cbd5e0 1px, transparent 1px) !important;
+}
+
+/* ─── Notification dot ─── */
+:root.light .bg-green-500 {
+  background-color: #16a34a !important;
+}
+
+/* ─── Version Badge ─── */
+:root.light .bg-slate-900[class*="border-slate-700"] {
+  background-color: #edf2f7 !important;
+  border-color: #d1dbe6 !important;
+  color: #718096 !important;
+}
+
+/* ─── Cytoscape graph background ─── */
+:root.light [style*="background-color: rgb(15, 23, 42)"] {
+  background-color: #f0f4f8 !important;
+}
+
+/* ─── Fix link/anchor colors ─── */
+:root.light a {
+  color: #2563eb;
+}
+
+/* ─── Alert feed cards ─── */
+:root.light .border-l-2 {
+  background-color: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   THEME TOGGLE BUTTON
+   ═══════════════════════════════════════════════════ */
+.theme-toggle {
+  position: relative;
+  width: 52px;
+  height: 26px;
+  border-radius: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  padding: 0;
+  flex-shrink: 0;
+  outline: none;
+}
+.theme-toggle.dark {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border-color: #475569;
+}
+.theme-toggle.light {
+  background: linear-gradient(135deg, #93c5fd 0%, #3b82f6 100%);
+  border-color: #60a5fa;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+}
+.theme-toggle-knob {
+  position: absolute;
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+.theme-toggle.dark .theme-toggle-knob {
+  transform: translateX(2px);
+  background-color: #1e293b;
+  box-shadow:
+    inset 0 0 4px rgba(148, 163, 184, 0.3),
+    0 0 6px rgba(148, 163, 184, 0.2);
+}
+.theme-toggle.light .theme-toggle-knob {
+  transform: translateX(26px);
+  background-color: #fbbf24;
+  box-shadow:
+    0 0 10px rgba(251, 191, 36, 0.45),
+    inset 0 0 4px rgba(255, 255, 255, 0.3);
 }

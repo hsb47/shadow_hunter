@@ -3,10 +3,7 @@ import os
 import signal
 from contextlib import asynccontextmanager
 from loguru import logger
-from scapy.all import AsyncSniffer
-
-from pkg.models.events import NetworkFlowEvent
-from services.listener.sniffer import PacketProcessor
+from services.listener.sniffer import PacketProcessor, SCAPY_AVAILABLE
 
 # Configuration
 SH_ENV = os.getenv("SH_ENV", "local").lower()
@@ -26,6 +23,7 @@ class ListenerService:
             from pkg.infra.local.broker import MemoryBroker
             self.broker = MemoryBroker() 
             
+        # Pass the broker so PacketProcessor can call broker.publish()
         self.processor = PacketProcessor(self.broker)
         self.sniffer = None
 
@@ -33,14 +31,21 @@ class ListenerService:
         logger.info(f"Starting Listener Service in {SH_ENV.upper()} mode...")
         await self.broker.start()
         
-        logger.info(f"Starting packet capture on interface: {INTERFACE or 'ALL'}")
-        self.sniffer = AsyncSniffer(
-            iface=INTERFACE,
-            prn=self.processor.process_packet_callback,
-            store=False
-        )
-        self.sniffer.start()
-        logger.info("Packet capture started.")
+        if SCAPY_AVAILABLE:
+            logger.info(f"Starting packet capture on interface: {INTERFACE or 'ALL'}")
+            try:
+                from scapy.all import AsyncSniffer
+                self.sniffer = AsyncSniffer(
+                    iface=INTERFACE,
+                    prn=self.processor.process_packet_callback,
+                    store=False
+                )
+                self.sniffer.start()
+                logger.info("Packet capture started.")
+            except Exception as e:
+                logger.error(f"Failed to start packet capture: {e}")
+        else:
+            logger.warning("Packet capture SKIPPED (Scapy/Npcap missing). System running in purely analytical mode.")
 
     async def stop(self):
         logger.info("Stopping Listener Service...")

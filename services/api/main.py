@@ -1,9 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from contextlib import asynccontextmanager
 
 from services.api.routers import discovery, policy
+
+# Module-level mode flag (set by run_local.py)
+_live_mode = False
+
+def set_live_mode(val: bool):
+    global _live_mode
+    _live_mode = val
+
+def get_live_mode() -> bool:
+    return _live_mode
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +43,20 @@ app.include_router(policy.router, prefix="/v1/policy", tags=["Policy"])
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "component": "control-plane"}
+
+@app.get("/v1/status")
+async def system_status():
+    return {"mode": "live" if _live_mode else "demo"}
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    from services.api.transceiver import manager
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception:
+        manager.disconnect(websocket)
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,0 +1,22 @@
+
+2026-02-16 11:35:00.123 | INFO     | __main__:main:27 - Starting Shadow Hunter in LIVE mode...
+2026-02-16 11:35:00.125 | INFO     | pkg.infra.local.broker:start:21 - MemoryBroker started.
+2026-02-16 11:35:03.456 | INFO     | services.intelligence.models.anomaly:load:121 - Anomaly Model loaded from services\intelligence\saved_models\anomaly_model.joblib
+
+========================================
+CRITICAL ERROR: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions
+----------------------------------------
+Traceback (most recent call last):
+  File "run_local.py", line 79, in main
+    await listener.start()
+  File "services\listener\sniffer.py", line 32, in start
+    conf.iface = 'Realtek PCIe GbE Family Controller'
+  File "scapy\arch\windows\__init__.py", line 456, in _get_windows_if_list
+    devs = pcapy.findalldevs()
+pcapy.PcapError: Error: Devices not found. Do you have Npcap installed?
+
+OR
+
+scapy.error.Scapy_Exception: Interface is invalid or disconnected.
+Make sure to install Npcap in "WinPcap API-compatible Mode".
+========================================

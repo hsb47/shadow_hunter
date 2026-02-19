@@ -4,53 +4,48 @@ Shadow Hunter operates as a hybridized **Control Plane / Data Plane** architectu
 
 ## Core System Layers
 
-- **Data Plane (The "Sensors"):** Distributed, lightweight agents deployed as DaemonSets (Kubernetes) or eBPF probes (VMs). These perform passive traffic analysis and active service interrogation without impacting application latency. They are stateless and push telemetry to the ingestion layer.
-- **Control Plane (The "Brain"):** Centralized aggregation, analysis, and decision-making cluster. It ingests telemetry, builds the dependency graph, runs AI models for anomaly detection, and orchestrates mitigation strategies.
-- **Ingestion & Processing:** deeply decoupled via Kafka. Raw network flows are processed into "conversations" and "behaviors".
-- **The Loop:** Observe -> Orient (Graph) -> Decide (AI) -> Act (Mitigate).
+- **Data Plane (The "Sensors"):**
+  - **Listener Service:** Distributed, lightweight agents deployed as DaemonSets (K8s) or Sidecars.
+  - **DPI Engine:** Powered by Scapy (Python) or eBPF (C/Rust), utilizing `libpcap`/`Npcap` for packet capture.
+  - **Capabilities:** Full L7 extraction (HTTP Host, TLS SNI, DNS Queries) to identify services by name, not just IP.
 
-## Architecture Diagram
+- **Control Plane (The "Brain"):**
+  - **Analyzer Service:** Centralized processing engine.
+  - **Event Broker:** Decoupled messaging bus (`Kafka` for Enterprise, `Memory` for Local).
+  - **Graph Store:** Persistent topology DB (`Neo4j` for Enterprise, `NetworkX` for Local).
+
+- **Presentation Layer:**
+  - **API:** REST API (FastAPI) serving the graph and alerts.
+  - **Dashboard:** Real-time React application for visualization.
+
+## Diagram
 
 ```mermaid
-graph TB
-    subgraph "Target Cloud Environment (VPC/K8s)"
-        direction TB
-        AppService[Application Services]
-        ShadowAI[Unknown AI Agent]
-
-        subgraph "Data Plane (DaemonSet)"
-            TrafficMirror[eBPF Traffic Mirror]
-            Interrogator[Interrogator Node]
-        end
-
-        AppService --> ShadowAI
-        TrafficMirror -.->|Packet Copy| AppService
-        TrafficMirror -.->|Packet Copy| ShadowAI
-        Interrogator -->|Active Probes| ShadowAI
+graph TD
+    subgraph "Data Plane (Listener Nodes)"
+        P[Packet Capture] -->|Raw Packets| D[DPI Engine]
+        D -->|Protocol/Host/SNI| E[Event Producer]
     end
 
-    subgraph "Shadow Hunter Control Plane"
-        direction TB
-        Ingest[Kafka Ingestion Layer]
-        StreamProc[Stream Processor (Flink/Rust)]
+    E -->|NetworkFlowEvent| B((Event Broker))
 
-        subgraph "Intelligence Core"
-            GraphDB[(Causal Graph DB)]
-            BehaviorEng[Behavioral Engine (LSTM)]
-            RiskEng[Risk Engine]
-        end
+    subgraph "Control Plane (Analyzer)"
+        B -->|Consume| A[Analyzer Engine]
+        A -->|Detect| L[Anomaly Detector]
+        A -->|Update| G[Graph Store]
+        L -- match --> DB[(AI Domains DB)]
+    end
 
-        API[Control Plane API]
-        Dashboard[Admin Dashboard]
-
-        TrafficMirror -->|NetFlow/PCAP| Ingest
-        Interrogator -->|Probe Results| Ingest
-        Ingest --> StreamProc
-        StreamProc --> BehaviorEng
-        StreamProc --> GraphDB
-        BehaviorEng --> RiskEng
-        RiskEng --> API
-        API --> Dashboard
-        API -->|Mitigation Commands| Interrogator
+    subgraph "User Interface"
+        API[FastAPI Gateway] -->|Query| G
+        UI[React Dashboard] -->|Poll| API
     end
 ```
+
+## Data Flow
+
+1.  **Ingestion:** Listeners capture traffic, parse L7 headers, and publish verified events.
+2.  **Enrichment:** Analyzer checks destination against Threat Intel and AI Domain databases.
+3.  **Graph Building:** Nodes (Services/IPs) and Edges (Flows) are upserted into the Graph Store.
+4.  **Analysis:** Heuristic and ML models scan for forbidden flows or anomalies.
+5.  **Visualization:** Users explore the live dependency graph in the Dashboard.

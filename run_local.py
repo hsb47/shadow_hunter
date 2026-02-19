@@ -1,100 +1,99 @@
+"""
+Shadow Hunter — Local Monolith Entry Point
+
+Usage:
+  python run_local.py          → DEMO MODE (simulated traffic, no Npcap needed)
+  python run_local.py --live   → LIVE MODE (real packet capture, requires Npcap)
+"""
 import asyncio
+import sys
 import uvicorn
 import os
 from loguru import logger
-from contextlib import asynccontextmanager
 
 from pkg.infra.local.broker import MemoryBroker
 from pkg.infra.local.store import NetworkXStore
 from services.analyzer.engine import AnalyzerEngine
 from services.listener.main import ListenerService
-from services.api.main import app as api_app
+from services.api.main import app as api_app, set_live_mode
 from services.api.dependencies import set_graph_store
+from services.listener.sniffer import SCAPY_AVAILABLE
+
+# Configuration
+LIVE_MODE = "--live" in sys.argv
 
 async def main():
-    logger.info("Starting Shadow Hunter in MONOLITH LOCAL mode...")
+    mode_label = "LIVE" if LIVE_MODE else "DEMO"
+    logger.info(f"Starting Shadow Hunter in {mode_label} mode...")
+    set_live_mode(LIVE_MODE)
     
-    # 1. Initialize Shared Infrastructure (The "Bus")
+    # 1. Initialize Shared Infrastructure
     broker = MemoryBroker()
     store = NetworkXStore()
     
-    # 2. Start Infrastructure
     await broker.start()
-    
-    # 3. Initialize Shared State for API
     set_graph_store(store)
     
-    # 4. Initialize Services (The "Microservices")
+    # 2. Initialize Services
     analyzer = AnalyzerEngine(broker, store)
-    listener = ListenerService(broker=broker)
-    
-    # 5. Start Services
     await analyzer.start()
-    await listener.start()
 
-    # 6. Simulator (Optional)
-    import sys
-    if "--simulate" in sys.argv:
-        from simulate_traffic import simulator
-        # We need to adapt simulator to use our existing broker instance
-        logger.info("Starting Traffic Simulator...")
+    # 3. Mode-specific startup
+    simulator_task = None
+
+    if LIVE_MODE:
+        # ═══ LIVE MODE: Real packet capture ═══
+        if not SCAPY_AVAILABLE:
+            logger.error("=" * 60)
+            logger.error("❌ LIVE MODE requires Npcap!")
+            logger.error("   Download: https://npcap.com/#download")
+            logger.error("   Install it, then restart.")
+            logger.error("   Or run without --live for demo mode.")
+            logger.error("=" * 60)
+            return
         
-        async def run_sim():
-            internal_services = ["192.168.1.10", "192.168.1.11", "192.168.1.12"]
-            external_apis = ["api.openai.com", "huggingface.co", "github.com"]
-            shadow_apis = ["104.21.55.2", "45.33.22.11"] 
-            
-            from pkg.models.events import NetworkFlowEvent, Protocol
-            import random
-            
-            while True:
-                # Normal Traffic
-                src = random.choice(internal_services)
-                dst = random.choice(internal_services)
-                await broker.publish("sh.telemetry.traffic.v1", NetworkFlowEvent(
-                    source_ip=src, source_port=1234, destination_ip=dst, destination_port=80, protocol=Protocol.HTTP
-                ))
+        listener = ListenerService(broker=broker)
+        await listener.start()
+        logger.info("🔴 LIVE MODE: Capturing real network packets")
+    else:
+        # ═══ DEMO MODE: Simulated corporate traffic ═══
+        logger.info("=" * 60)
+        logger.info("🟢 DEMO MODE: Simulated corporate traffic")
+        logger.info("   5 virtual employees generating realistic activity")
+        logger.info("   AI alerts will appear when they 'sneak' AI usage")
+        logger.info("   Run with --live flag for real packet capture")
+        logger.info("=" * 60)
+        from services.simulator.traffic_generator import TrafficGenerator
+        sim = TrafficGenerator(broker)
+        simulator_task = asyncio.create_task(sim.start())
 
-                # External Traffic
-                if random.random() > 0.6:
-                    src = random.choice(internal_services)
-                    dst = random.choice(external_apis)
-                    await broker.publish("sh.telemetry.traffic.v1", NetworkFlowEvent(
-                        source_ip=src, source_port=1234, destination_ip=dst, destination_port=443, protocol=Protocol.HTTPS
-                    ))
-
-                # Shadow/Anomaly Traffic
-                if random.random() > 0.9:
-                    src = random.choice(internal_services)
-                    dst = random.choice(shadow_apis)
-                    await broker.publish("sh.telemetry.traffic.v1", NetworkFlowEvent(
-                        source_ip=src, source_port=1234, destination_ip=dst, destination_port=6667, protocol=Protocol.TCP
-                    ))
-
-                await asyncio.sleep(2)
-
-        asyncio.create_task(run_sim())
-    
-    # 7. Start API (in same loop using uvicorn config)
-    config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="info")
+    # 4. Start API Server
+    # Cloud Run injects PORT env variable (default 8080); fallback to 8000 for local dev
+    port = int(os.environ.get("PORT", 8000))
+    config = uvicorn.Config(api_app, host="0.0.0.0", port=port, log_level="info")
     server = uvicorn.Server(config)
     
-    logger.info("All services started. Press Ctrl+C to stop.")
+    logger.info("Dashboard: http://localhost:5173")
+    logger.info("API: http://localhost:8000/docs")
+    logger.info("Press Ctrl+C to stop.")
     
     try:
         await server.serve()
     except asyncio.CancelledError:
         pass
+    except Exception as e:
+        logger.error(f"🔥 Error in server.serve(): {e}")
     finally:
         logger.info("Shutting down...")
-        await listener.stop()
-        # analyzer doesn't have stop yet, but broker stop handles it
+        if simulator_task:
+            simulator_task.cancel()
         await broker.stop()
 
 if __name__ == "__main__":
     try:
-        # Check for admin privileges (needed for simple raw socket sniffing on some OS)
-        # On Windows, Npcap driver handles this usually?
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        logger.exception(f"CRITICAL ERROR: {e}")
+        sys.exit(1)
