@@ -4,6 +4,9 @@ Session Sequence Analyzer — Behavioral pattern detection.
 Detects suspicious behavioral patterns across time, not just single flows.
 Example: An employee who suddenly starts accessing AI services after months
 of only using internal tools = behavioral anomaly.
+
+v2: Added temporal clustering (inter-arrival time analysis) and
+    data exfiltration velocity tracking for improved accuracy.
 """
 import numpy as np
 from collections import defaultdict
@@ -15,7 +18,7 @@ from loguru import logger
 class SessionAnalyzer:
     """
     Tracks per-IP session history and detects behavioral shifts.
-    
+
     Unlike the anomaly/classifier models that look at individual flows,
     this analyzes patterns OVER TIME per source IP.
     """
@@ -27,7 +30,7 @@ class SessionAnalyzer:
         # Per-IP baseline: { ip: { "avg_bytes": X, "top_dsts": [...], "patterns": {} } }
         self.baselines: Dict[str, dict] = {}
 
-    def record(self, src_ip: str, dst: str, dst_type: str, 
+    def record(self, src_ip: str, dst: str, dst_type: str,
                bytes_total: int, timestamp: datetime):
         """Record a flow event for session tracking."""
         self.sessions[src_ip].append({
@@ -45,7 +48,7 @@ class SessionAnalyzer:
     def analyze(self, src_ip: str) -> Dict:
         """
         Analyze an IP's recent session for behavioral anomalies.
-        
+
         Returns:
             {
                 "risk_score": float (0-1),
@@ -53,12 +56,15 @@ class SessionAnalyzer:
                 "ai_ratio": float,
                 "unique_dsts": int,
                 "total_flows": int,
+                "avg_inter_arrival_ms": float,
+                "exfil_velocity_kbps": float,
             }
         """
         session = self.sessions.get(src_ip, [])
         if not session:
             return {"risk_score": 0.0, "flags": [], "ai_ratio": 0.0,
-                    "unique_dsts": 0, "total_flows": 0}
+                    "unique_dsts": 0, "total_flows": 0,
+                    "avg_inter_arrival_ms": 0.0, "exfil_velocity_kbps": 0.0}
 
         total = len(session)
         ai_flows = [e for e in session if e["type"] == "shadow"]
@@ -68,6 +74,8 @@ class SessionAnalyzer:
 
         flags = []
         risk_score = 0.0
+
+        # ── Existing behavioral flags ──
 
         # Flag 1: High AI usage ratio
         if ai_ratio > 0.3:
@@ -96,6 +104,36 @@ class SessionAnalyzer:
             flags.append("HIGH_ACTIVITY")
             risk_score += 0.1
 
+        # ── New temporal & velocity flags ──
+
+        # Flag 6: Rapid-fire AI requests (inter-arrival time analysis)
+        avg_iat_ms = 0.0
+        if len(ai_flows) >= 2:
+            timestamps = sorted(e["timestamp"] for e in ai_flows)
+            intervals = [(timestamps[i + 1] - timestamps[i]).total_seconds() * 1000
+                         for i in range(len(timestamps) - 1)]
+            avg_iat_ms = sum(intervals) / len(intervals)
+            if avg_iat_ms < 5000:  # < 5 seconds between AI requests
+                flags.append("RAPID_AI_REQUESTS")
+                risk_score += 0.15
+
+        # Flag 7: Data exfiltration velocity (KB/s to AI services)
+        exfil_velocity = 0.0
+        if ai_flows and len(ai_flows) >= 2:
+            timestamps = sorted(e["timestamp"] for e in ai_flows)
+            duration_s = max((timestamps[-1] - timestamps[0]).total_seconds(), 1.0)
+            exfil_velocity = (ai_bytes / 1024.0) / duration_s  # KB/s
+            if exfil_velocity > 50.0:  # > 50 KB/s sustained to AI
+                flags.append("HIGH_EXFIL_VELOCITY")
+                risk_score += 0.2
+
+        # Flag 8: After-hours AI usage (before 8am or after 7pm)
+        recent_ts = session[-1]["timestamp"]
+        if recent_ts.hour < 8 or recent_ts.hour >= 19:
+            if ai_flows:
+                flags.append("AFTER_HOURS_AI")
+                risk_score += 0.15
+
         return {
             "risk_score": min(risk_score, 1.0),
             "flags": flags,
@@ -103,6 +141,8 @@ class SessionAnalyzer:
             "unique_dsts": unique_dsts,
             "total_flows": total,
             "ai_bytes": ai_bytes if ai_flows else 0,
+            "avg_inter_arrival_ms": round(avg_iat_ms, 1),
+            "exfil_velocity_kbps": round(exfil_velocity, 2),
         }
 
     def get_all_risk_scores(self) -> List[Tuple[str, float]]:

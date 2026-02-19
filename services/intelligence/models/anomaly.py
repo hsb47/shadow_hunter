@@ -70,6 +70,12 @@ class AnomalyModel:
         if not self.is_trained or not SKLEARN_AVAILABLE:
             return self._fallback_predict(X)
 
+        # Guard: feature count mismatch (model trained on different feature set)
+        expected = self.model.n_features_in_
+        if X.shape[1] != expected:
+            logger.warning(f"Feature mismatch: model expects {expected}, got {X.shape[1]}. Using heuristic fallback.")
+            return self._fallback_predict(X)
+
         return self.model.decision_function(X)
 
     def is_anomalous(self, X: np.ndarray, threshold: float = -0.1) -> np.ndarray:

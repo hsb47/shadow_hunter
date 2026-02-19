@@ -34,42 +34,45 @@ Shadow Hunter follows a modern, scalable data pipeline architecture designed for
 
 ```mermaid
 graph TB
-    subgraph "Layer 1: Traffic Collection"
-        A[Enterprise Network] -->|Packets/Flows| B(Traffic Sniffer / Simulator)
-        subgraph "Sources"
-            A1[User Devices]
-            A2[Servers/VMs]
-            A3[Kubernetes Clusters]
+    subgraph Layer1 ["Layer 1: Traffic Collection"]
+        A["Enterprise Network"] -->|Packets/Flows| B("Traffic Sniffer / Simulator")
+        subgraph Sources
+            A1["User Devices"]
+            A2["Servers/VMs"]
+            A3["Kubernetes Clusters"]
         end
         A1 --> A
         A2 --> A
         A3 --> A
     end
 
-    subgraph "Layer 2: Detection & Processing"
-        B --> C{Broker / Queue}
-        C --> D[Shadow Hunter Analyzer]
+    subgraph Layer2 ["Layer 2: Detection & Processing"]
+        B --> C{"Broker / Queue"}
+        C --> D["Shadow Hunter Analyzer"]
 
-        subgraph "Analyzer Modules"
-            D1[Protocol Decoder (DPI)]
-            D2[Whitelisting Engine]
-            D3[Rule Engine (AI Domains)]
-            D4[ML Inference (Isolation Forest)]
+        subgraph AnalyzerModules ["Analyzer Modules"]
+            D1["Protocol Decoder (DPI)"]
+            D2["Whitelisting Engine"]
+            D3["Rule Engine (AI Domains)"]
+            D4["ML Inference (Isolation Forest)"]
         end
 
-        D --> D1 --> D2 --> D3 --> D4
-        D --> E[(Graph Database)]
+        D --> D1
+        D1 --> D2
+        D2 --> D3
+        D3 --> D4
+        D --> E[("Graph Database")]
     end
 
-    subgraph "Layer 3: Visualization & Response"
-        D --> F[API Service (FastAPI)]
-        F --> G[Web Dashboard (React)]
-        F --> H[Alert System]
+    subgraph Layer3 ["Layer 3: Visualization & Response"]
+        D --> F["API Service (FastAPI)"]
+        F --> G["Web Dashboard (React)"]
+        F --> H["Alert System"]
 
-        subgraph "Dashboard Views"
-            G1[Live Graph]
-            G2[Traffic Analytics]
-            G3[Intel Feed]
+        subgraph DashboardViews ["Dashboard Views"]
+            G1["Live Graph"]
+            G2["Traffic Analytics"]
+            G3["Intel Feed"]
         end
 
         G --> G1

@@ -16,17 +16,21 @@ ML_AVAILABLE = os.path.exists(os.path.join(MODELS_DIR, "classifier_model.joblib"
 class AnalyzerEngine:
     """
     The "Brain" of Shadow Hunter.
-    
+
     Two analysis modes:
     - Rule-based: AnomalyDetector (always active, fast)
     - ML-powered: IntelligenceEngine (when trained models are available)
+
+    Performance:
+    - Graph writes use asyncio.gather for concurrent upserts.
+    - Session context is injected into alerts for richer intelligence.
     """
     def __init__(self, broker: EventBroker, graph_store: GraphStore, use_ml: bool = True):
         self.broker = broker
         self.graph = graph_store
         self.detector = AnomalyDetector()
         self._event_count = 0
-        
+
         # ML Intelligence Engine (optional, enhances rule-based detection)
         self.intel_engine = None
         if use_ml and ML_AVAILABLE:
@@ -61,7 +65,7 @@ class AnalyzerEngine:
 
             # 2. Enrich & Classify Nodes
             host = event.metadata.get("host") or event.metadata.get("sni") or event.metadata.get("dns_query")
-            
+
             src_id = event.source_ip
             src_type = "internal" if self.detector.is_internal(src_id) else "external"
             src_props = {
@@ -72,11 +76,11 @@ class AnalyzerEngine:
 
             dst_id = event.destination_ip
             dst_label = dst_id
-            dst_type = "external" 
+            dst_type = "external"
 
             if self.detector.is_internal(dst_id):
                 dst_type = "internal"
-            
+
             if host:
                 dst_id = host
                 dst_label = host
@@ -91,10 +95,7 @@ class AnalyzerEngine:
                 "last_seen": event.timestamp.isoformat()
             }
 
-            # 3. Update Graph
-            await self.graph.add_node(src_id, ["Node"], src_props)
-            await self.graph.add_node(dst_id, ["Node"], dst_props)
-
+            # 3. Update Graph — concurrent upserts for performance
             protocol_str = event.protocol.value if hasattr(event.protocol, 'value') else str(event.protocol)
             edge_props = {
                 "protocol": protocol_str,
@@ -102,6 +103,10 @@ class AnalyzerEngine:
                 "byte_count": event.bytes_sent + event.bytes_received,
                 "last_seen": event.timestamp.isoformat()
             }
+            await asyncio.gather(
+                self.graph.add_node(src_id, ["Node"], src_props),
+                self.graph.add_node(dst_id, ["Node"], dst_props),
+            )
             await self.graph.add_edge(src_id, dst_id, "TALKS_TO", edge_props)
 
             # 4. Detection — Rule-based (always runs)
@@ -112,7 +117,7 @@ class AnalyzerEngine:
             ml_verdict = None
             if self.intel_engine and not self.detector.is_whitelisted(event):
                 ml_verdict = self.intel_engine.analyze(event)
-                
+
                 # ML can override or enhance the rule-based verdict
                 if not is_anomalous and ml_verdict["classification"] == "shadow_ai" and ml_verdict["confidence"] > 0.7:
                     is_anomalous = True
@@ -130,7 +135,7 @@ class AnalyzerEngine:
             # 6. Generate Alert
             if is_anomalous:
                 logger.warning(f"🚨 ALERT [{severity}]: {src_id} -> {dst_id} ({reason})")
-                
+
                 alert = {
                     "id": f"alert-{event.timestamp.timestamp()}-{self._event_count}",
                     "severity": severity,
@@ -147,11 +152,24 @@ class AnalyzerEngine:
                     "destination_ip": event.destination_ip,
                 }
 
-                # Add ML metadata if available (before broadcast so WS clients get it)
+                # Add ML metadata if available
                 if ml_verdict:
                     alert["ml_classification"] = ml_verdict["classification"]
                     alert["ml_confidence"] = ml_verdict["confidence"]
                     alert["ml_risk_score"] = ml_verdict["risk_score"]
+
+                # Add session context for richer alerts
+                if self.intel_engine:
+                    session_ctx = self.intel_engine.analyze_session(src_id)
+                    if session_ctx.get("flags"):
+                        alert["session_flags"] = session_ctx["flags"]
+                        alert["session_risk"] = session_ctx["risk_score"]
+                        alert["exfil_velocity_kbps"] = session_ctx.get("exfil_velocity_kbps", 0.0)
+                        # Escalate severity if session shows sustained abuse
+                        if session_ctx["risk_score"] > 0.7 and severity != "HIGH":
+                            severity = "HIGH"
+                            alert["severity"] = severity
+                            alert["description"] += f" [Session risk: {session_ctx['risk_score']:.0%}]"
 
                 # Broadcast to connected clients
                 from services.api.transceiver import manager
@@ -159,7 +177,7 @@ class AnalyzerEngine:
                     "type": "alert",
                     "payload": alert
                 })
-                
+
                 add_alert(alert)
 
         except Exception as e:

@@ -80,6 +80,12 @@ class TrafficClassifier:
         if not self.is_trained or not SKLEARN_AVAILABLE:
             return self._fallback_predict(X)
 
+        # Guard: feature count mismatch
+        expected = self.model.n_features_in_
+        if X.shape[1] != expected:
+            logger.warning(f"Feature mismatch: model expects {expected}, got {X.shape[1]}. Using heuristic fallback.")
+            return self._fallback_predict(X)
+
         y_pred = self.model.predict(X)
         return self.label_encoder.inverse_transform(y_pred).tolist()
 
@@ -91,6 +97,11 @@ class TrafficClassifier:
             Array of shape (N, 3) with [normal, suspicious, shadow_ai] probabilities
         """
         if not self.is_trained or not SKLEARN_AVAILABLE:
+            return np.array([[0.8, 0.1, 0.1]] * X.shape[0])
+
+        # Guard: feature count mismatch
+        expected = self.model.n_features_in_
+        if X.shape[1] != expected:
             return np.array([[0.8, 0.1, 0.1]] * X.shape[0])
 
         return self.model.predict_proba(X)
