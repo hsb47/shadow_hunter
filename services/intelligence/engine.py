@@ -1,7 +1,7 @@
 """
 Intelligence Engine — Main entry point for ML-powered traffic analysis.
 
-1. Loads trained models (Anomaly & Classifier).
+1. Loads trained models (Anomaly, Classifier, & Autoencoder).
 2. Extracts features from real-time NetworkFlowEvents.
 3. Returns a verdict (risk score, classification, anomalies).
 """
@@ -16,11 +16,13 @@ from services.intelligence.features.extractor import FeatureExtractor
 from services.intelligence.models.anomaly import AnomalyModel
 from services.intelligence.models.classifier import TrafficClassifier
 from services.intelligence.models.sequence import SessionAnalyzer
+from services.intelligence.models.autoencoder import ShadowAutoencoder
 
 # Paths
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "saved_models")
 ANOMALY_PATH = os.path.join(MODEL_DIR, "anomaly_model.joblib")
 CLASSIFIER_PATH = os.path.join(MODEL_DIR, "classifier_model.joblib")
+AUTOENCODER_PATH = os.path.join(MODEL_DIR, "autoencoder_model.joblib")
 
 
 class IntelligenceEngine:
@@ -39,6 +41,7 @@ class IntelligenceEngine:
         # Models
         self.anomaly_model = AnomalyModel()
         self.classifier = TrafficClassifier()
+        self.autoencoder = ShadowAutoencoder()
         self.session_analyzer = SessionAnalyzer(window_minutes=60)
         
         self.models_loaded = False
@@ -55,6 +58,11 @@ class IntelligenceEngine:
                 self.classifier.load(CLASSIFIER_PATH)
             else:
                 logger.warning(f"Classifier model not found at {CLASSIFIER_PATH}")
+
+            if os.path.exists(AUTOENCODER_PATH):
+                self.autoencoder.load(AUTOENCODER_PATH)
+            else:
+                logger.warning(f"Autoencoder model not found at {AUTOENCODER_PATH}")
                 
             self.models_loaded = True
             logger.info("Intelligence Engine models loaded successfully.")
@@ -124,13 +132,35 @@ class IntelligenceEngine:
             severity = "High" if anomaly_score < -0.4 else "Medium"
             reasons.append(f"{severity} Anomaly detected (score: {anomaly_score:.2f})")
 
+        # 5.5 Autoencoder Deep Learning Analysis
+        ae_result = self.autoencoder.predict(features)
+        ae_anomalous = ae_result["is_anomalous"]
+
+        if is_anomalous and ae_anomalous:
+            # Both IF and Autoencoder agree — high confidence anomaly
+            risk_score = max(risk_score, 0.85)
+            reasons.append(
+                f"ML + Deep Learning agreement: high-confidence anomaly "
+                f"(reconstruction error: {ae_result['reconstruction_error']:.4f}, "
+                f"p{ae_result['percentile']:.0f})"
+            )
+        elif ae_anomalous:
+            # Only autoencoder flags it — novel pattern the IF didn't catch
+            risk_score = min(risk_score + 0.15, 1.0)
+            reasons.append(
+                f"Autoencoder anomaly detected "
+                f"(error: {ae_result['reconstruction_error']:.4f}, "
+                f"p{ae_result['percentile']:.0f})"
+            )
+
         return {
-            "is_anomalous": is_anomalous,
+            "is_anomalous": is_anomalous or ae_anomalous,
             "anomaly_score": round(anomaly_score, 3),
             "classification": classification,
             "confidence": round(confidence, 3),
             "risk_score": round(risk_score, 2),
-            "reasons": reasons
+            "reasons": reasons,
+            "autoencoder": ae_result,
         }
 
     def analyze_session(self, src_ip: str) -> Dict[str, Any]:
