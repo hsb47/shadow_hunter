@@ -68,7 +68,9 @@ async def main():
         simulator_task = asyncio.create_task(sim.start())
 
     # 4. Start API Server
-    config = uvicorn.Config(api_app, host="0.0.0.0", port=8000, log_level="info")
+    # Cloud Run injects PORT env variable (default 8080); fallback to 8000 for local dev
+    port = int(os.environ.get("PORT", 8000))
+    config = uvicorn.Config(api_app, host="0.0.0.0", port=port, log_level="info")
     server = uvicorn.Server(config)
     
     logger.info("Dashboard: http://localhost:5173")

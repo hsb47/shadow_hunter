@@ -1,0 +1,34 @@
+# Dependencies & caches
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Frontend node_modules (built separately if needed)
+services/dashboard/node_modules/
+
+# Docs & non-essential files
+docs/
+README.md
+LICENSE
+*.md
+
+# OS files
+.DS_Store
+Thumbs.db
