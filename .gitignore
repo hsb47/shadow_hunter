@@ -1,0 +1,52 @@
+
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Javascript/Node
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Specific
+shadow_hunter.db
+*.log
+*.joblib
+saved_models/
+inspect_db.py
+test_*.py
+
+# Documentation artifacts (Keep the ones in docs/, ignore duplicates in root if any)
+# But we want to track docs/ so:
+!docs/
