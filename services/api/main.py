@@ -1,4 +1,6 @@
-from fastapi import FastAPI, WebSocket
+import os
+from fastapi import FastAPI, WebSocket, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from contextlib import asynccontextmanager
@@ -39,6 +41,26 @@ app.add_middleware(
 
 app.include_router(discovery.router, prefix="/v1/discovery", tags=["Discovery"])
 app.include_router(policy.router, prefix="/v1/policy", tags=["Policy"])
+
+# ── API Key Authentication Middleware ──
+# Protects write operations. Read endpoints remain open.
+API_KEY = os.environ.get("SH_API_KEY", "shadow-hunter-dev")
+OPEN_PATHS = {"/health", "/ws", "/docs", "/openapi.json", "/redoc"}
+
+@app.middleware("http")
+async def api_key_auth(request: Request, call_next):
+    # Allow all GET requests and open paths
+    if request.method == "GET" or request.url.path in OPEN_PATHS:
+        return await call_next(request)
+
+    # Require API key for write operations
+    key = request.headers.get("X-API-Key")
+    if key != API_KEY:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or missing API key. Set X-API-Key header."}
+        )
+    return await call_next(request)
 
 @app.get("/health")
 async def health_check():

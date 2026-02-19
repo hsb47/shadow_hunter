@@ -13,6 +13,11 @@ from loguru import logger
 
 from pkg.infra.local.broker import MemoryBroker
 from pkg.infra.local.store import NetworkXStore
+try:
+    from pkg.infra.local.sqlite_store import SQLiteGraphStore
+    SQLITE_AVAILABLE = True
+except ImportError:
+    SQLITE_AVAILABLE = False
 from services.analyzer.engine import AnalyzerEngine
 from services.listener.main import ListenerService
 from services.api.main import app as api_app, set_live_mode
@@ -21,6 +26,7 @@ from services.listener.sniffer import SCAPY_AVAILABLE
 
 # Configuration
 LIVE_MODE = "--live" in sys.argv
+IN_MEMORY = "--inmemory" in sys.argv
 
 async def main():
     mode_label = "LIVE" if LIVE_MODE else "DEMO"
@@ -29,7 +35,14 @@ async def main():
     
     # 1. Initialize Shared Infrastructure
     broker = MemoryBroker()
-    store = NetworkXStore()
+
+    if IN_MEMORY or not SQLITE_AVAILABLE:
+        store = NetworkXStore()
+        logger.info("Using in-memory graph store (NetworkX)")
+    else:
+        store = SQLiteGraphStore("shadow_hunter.db")
+        await store.initialize()
+        logger.info("Using persistent graph store (SQLite)")
     
     await broker.start()
     set_graph_store(store)
@@ -88,6 +101,8 @@ async def main():
         if simulator_task:
             simulator_task.cancel()
         await broker.stop()
+        if hasattr(store, 'close'):
+            await store.close()
 
 if __name__ == "__main__":
     try:
